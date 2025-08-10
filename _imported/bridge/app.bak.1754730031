@@ -1,0 +1,326 @@
+import os, json, pathlib, subprocess, base64, hmac, hashlib, time
+from typing import Optional
+from fastapi import FastAPI, Header, HTTPException, Request, Query
+from fastapi.responses import PlainTextResponse
+
+app = FastAPI()
+
+CFG_PATH = "config.json"
+if not os.path.exists(CFG_PATH):
+    raise RuntimeError("config.json missing")
+with open(CFG_PATH, "r") as f:
+    CFG = json.load(f)
+
+BASE_DIR = pathlib.Path(CFG["base_dir"]).resolve()
+TOKEN = CFG["token"]
+MAX_BYTES = int(CFG.get("max_bytes", 2_000_000))
+
+def _guard_path(p: str) -> pathlib.Path:
+    rp = pathlib.Path(p).expanduser().resolve()
+    if not str(rp).startswith(str(BASE_DIR)):
+        raise HTTPException(status_code=400, detail="path outside allow list")
+    return rp
+
+def _b64url_decode(s: str) -> bytes:
+    pad = "=" * ((4 - len(s) % 4) % 4)
+    return base64.urlsafe_b64decode(s + pad)
+
+def _stat_info(p: pathlib.Path):
+    try:
+        st = p.stat()
+        return {
+            "size": st.st_size,
+            "mtime_epoch": int(st.st_mtime),
+            "mtime_iso": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime)),
+        }
+    except Exception:
+        return {"size": None, "mtime_epoch": None, "mtime_iso": None}
+
+@app.get("/")
+def root():
+    return {"ok": True, "base_dir": str(BASE_DIR)}
+
+# JSON bundle apply with token
+@app.post("/apply")
+async def apply(request: Request, x_auth: Optional[str] = Header(default=None)):
+    if x_auth != TOKEN:
+        raise HTTPException(status_code=401, detail="bad token")
+    body = await request.body()
+    if len(body) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="bad json")
+
+    actions = data.get("actions", [])
+    results, bytes_written = [], 0
+    for a in actions:
+        op = (a.get("op") or "").lower()
+        path = a.get("path")
+        content = a.get("content")
+        mode = a.get("mode") or "w"
+        tgt = _guard_path(path)
+        if op == "mkdir":
+            tgt.mkdir(parents=True, exist_ok=True)
+            results.append({"op": op, "path": str(tgt), "status": "ok"})
+        elif op in ("write", "append"):
+            if content is None:
+                raise HTTPException(status_code=400, detail="content required")
+            enc = content.encode("utf-8")
+            bytes_written += len(enc)
+            if bytes_written > MAX_BYTES:
+                raise HTTPException(status_code=413, detail="bundle too large")
+            tgt.parent.mkdir(parents=True, exist_ok=True)
+            m = "a" if op == "append" else mode
+            with open(tgt, m, encoding="utf-8") as f:
+                f.write(content)
+            results.append({"op": op, "path": str(tgt), "status": "ok", "bytes": len(enc)})
+        else:
+            raise HTTPException(status_code=400, detail=f"unsupported op {op}")
+    return {"ok": True, "results": results}
+
+# Simple query based ops
+@app.get("/p")
+def file_ops(op: str = Query(...), path: str = Query(...), text: str = Query("")):
+    tgt = _guard_path(path)
+    if op == "write":
+        tgt.parent.mkdir(parents=True, exist_ok=True)
+        with open(tgt, "w") as f: f.write(text)
+        return {"status": "written", "path": str(tgt)}
+    if op == "append":
+        tgt.parent.mkdir(parents=True, exist_ok=True)
+        with open(tgt, "a") as f: f.write(text)
+        return {"status": "appended", "path": str(tgt)}
+    if op == "read":
+        if not tgt.exists():
+            return {"status": "missing", "path": str(tgt)}
+        return {"status": "read", "path": str(tgt), "content": open(tgt).read()}
+    if op == "delete":
+        try:
+            os.remove(tgt)
+            return {"status": "deleted", "path": str(tgt)}
+        except FileNotFoundError:
+            return {"status": "missing", "path": str(tgt)}
+    if op == "mkdir":
+        tgt.mkdir(parents=True, exist_ok=True)
+        return {"status": "mkdir", "path": str(tgt)}
+    return {"error": "unknown op"}
+
+# Run a python file and return stdout and stderr
+@app.get("/exec")
+def exec_file(path: str = Query(...)):
+    tgt = _guard_path(path)
+    r = subprocess.run(["python3", str(tgt)], capture_output=True, text=True)
+    return {"ok": True, "stdout": r.stdout, "stderr": r.stderr, "code": r.returncode}
+
+# Signed public write with no expiry
+@app.get("/public-apply-ne")
+def public_apply_no_expiry(name: str, content: str, ts: int, sig: str):
+    msg = f"{ts}|{name}|{content}".encode()
+    good = hmac.new(TOKEN.encode(), msg, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(good, sig):
+        raise HTTPException(status_code=401, detail="bad sig")
+    target = _guard_path(name if name.startswith("/") else str(BASE_DIR / name))
+    data = _b64url_decode(content)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "wb") as f:
+        f.write(data)
+    return {"ok": True, "path": str(target), "bytes": len(data)}
+
+# Public bundle with no expiry
+@app.get("/public-apply-bundle")
+def public_apply_bundle(bundle: str, ts: int, sig: str):
+    msg = f"{ts}|{bundle}".encode()
+    good = hmac.new(TOKEN.encode(), msg, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(good, sig):
+        raise HTTPException(status_code=401, detail="bad sig")
+    spec = json.loads(_b64url_decode(bundle).decode())
+    results = []
+    for a in spec.get("actions", []):
+        op = (a.get("op") or "").lower()
+        path = a.get("path")
+        content = a.get("content")
+        mode = a.get("mode") or "w"
+        tgt = _guard_path(path)
+        if op == "mkdir":
+            tgt.mkdir(parents=True, exist_ok=True)
+            results.append({"op": op, "path": str(tgt), "status": "ok"})
+        elif op in ("write", "append"):
+            if content is None:
+                raise HTTPException(status_code=400, detail="content required")
+            tgt.parent.mkdir(parents=True, exist_ok=True)
+            m = "a" if op == "append" else mode
+            with open(tgt, m, encoding="utf-8") as f:
+                f.write(content)
+            results.append({"op": op, "path": str(tgt), "status": "ok", "bytes": len(content.encode("utf-8"))})
+        else:
+            raise HTTPException(status_code=400, detail=f"unsupported op {op}")
+    return {"ok": True, "results": results}
+
+# Path only endpoints with base64url content
+@app.get("/path/read/{filepath:path}")
+def path_read(filepath: str):
+    tgt = _guard_path("/" + filepath)
+    if not tgt.exists():
+        return {"status": "missing", "path": str(tgt)}
+    return {"status": "read", "path": str(tgt), "content": open(tgt, "r", encoding="utf-8", errors="ignore").read()}
+
+@app.get("/path/read-raw/{filepath:path}")
+def path_read_raw(filepath: str):
+    tgt = _guard_path("/" + filepath)
+    if not tgt.exists():
+        raise HTTPException(status_code=404, detail="file not found")
+    text = open(tgt, "r", encoding="utf-8", errors="ignore").read()
+    return PlainTextResponse(text, media_type="text/x-python")
+
+@app.get("/path/delete/{filepath:path}")
+def path_delete(filepath: str):
+    tgt = _guard_path("/" + filepath)
+    try:
+        os.remove(tgt)
+        return {"status": "deleted", "path": str(tgt)}
+    except FileNotFoundError:
+        return {"status": "missing", "path": str(tgt)}
+
+@app.get("/path/mkdir/{filepath:path}")
+def path_mkdir(filepath: str):
+    tgt = _guard_path("/" + filepath)
+    tgt.mkdir(parents=True, exist_ok=True)
+    return {"status": "mkdir", "path": str(tgt)}
+
+@app.get("/path/write/{filepath:path}/{b64content}")
+def path_write(filepath: str, b64content: str):
+    tgt = _guard_path("/" + filepath)
+    data = _b64url_decode(b64content)
+    tgt.parent.mkdir(parents=True, exist_ok=True)
+    with open(tgt, "wb") as f:
+        f.write(data)
+    return {"status": "written", "path": str(tgt), "bytes": len(data)}
+
+@app.get("/path/append/{filepath:path}/{b64content}")
+def path_append(filepath: str, b64content: str):
+    tgt = _guard_path("/" + filepath)
+    data = _b64url_decode(b64content)
+    tgt.parent.mkdir(parents=True, exist_ok=True)
+    with open(tgt, "ab") as f:
+        f.write(data)
+    return {"status": "appended", "path": str(tgt), "bytes": len(data)}
+
+@app.get("/path/edit/{filepath:path}/{b64pattern}/{b64replace}")
+def path_edit(filepath: str, b64pattern: str, b64replace: str):
+    tgt = _guard_path("/" + filepath)
+    if not tgt.exists():
+        return {"status": "missing", "path": str(tgt)}
+    pat = _b64url_decode(b64pattern).decode("utf-8", "ignore")
+    rep = _b64url_decode(b64replace).decode("utf-8", "ignore")
+    text = open(tgt, "r", encoding="utf-8", errors="ignore").read()
+    new = text.replace(pat, rep, 1)
+    with open(tgt, "w", encoding="utf-8") as f:
+        f.write(new)
+    return {"status": "edited", "path": str(tgt)}
+
+# Directory listing and tree
+@app.get("/path/list/{filepath:path}")
+def path_list(filepath: str):
+    base = _guard_path("/" + filepath)
+    if not base.exists() or not base.is_dir():
+        raise HTTPException(status_code=404, detail="directory not found")
+    items = []
+    for entry in base.iterdir():
+        info = _stat_info(entry)
+        items.append({
+            "name": entry.name,
+            "type": "dir" if entry.is_dir() else "file",
+            "size": info["size"],
+            "mtime_iso": info["mtime_iso"],
+            "mtime_epoch": info["mtime_epoch"],
+        })
+    items.sort(key=lambda x: (x["type"] != "dir", x["name"].lower()))
+    return {"status": "ok", "path": str(base), "entries": items}
+
+@app.get("/path/tree/{filepath:path}")
+def path_tree(filepath: str):
+    root = _guard_path("/" + filepath)
+    if not root.exists() or not root.is_dir():
+        raise HTTPException(status_code=404, detail="directory not found")
+    out = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dpath = pathlib.Path(dirpath)
+        for d in dirnames:
+            p = dpath / d
+            info = _stat_info(p)
+            out.append({"path": str(p), "type": "dir", "size": info["size"], "mtime_iso": info["mtime_iso"], "mtime_epoch": info["mtime_epoch"]})
+        for f in filenames:
+            p = dpath / f
+            info = _stat_info(p)
+            out.append({"path": str(p), "type": "file", "size": info["size"], "mtime_iso": info["mtime_iso"], "mtime_epoch": info["mtime_epoch"]})
+    out.sort(key=lambda x: x["path"].lower())
+    return {"status": "ok", "root": str(root), "entries": out}
+
+@app.get("/path/tree-raw/{filepath:path}")
+def path_tree_raw(filepath: str):
+    root = _guard_path("/" + filepath)
+    if not root.exists() or not root.is_dir():
+        raise HTTPException(status_code=404, detail="directory not found")
+    lines = [str(root)]
+    for dirpath, dirnames, filenames in os.walk(root):
+        rel = pathlib.Path(dirpath).relative_to(root)
+        depth = 0 if str(rel) == "." else len(rel.parts)
+        prefix = "    " * depth
+        dirnames.sort()
+        filenames.sort()
+        for d in dirnames:
+            p = pathlib.Path(dirpath) / d
+            info = _stat_info(p)
+            lines.append(f"{prefix}├── {d}/  [{info['size'] if info['size'] is not None else '-'} bytes]  {info['mtime_iso']}")
+        for f in filenames:
+            p = pathlib.Path(dirpath) / f
+            info = _stat_info(p)
+            lines.append(f"{prefix}├── {f}  [{info['size'] if info['size'] is not None else '-'} bytes]  {info['mtime_iso']}")
+    return PlainTextResponse("\n".join(lines), media_type="text/plain")
+
+
+from fastapi.responses import PlainTextResponse
+
+def _hsize(n):
+    if n is None: return "-"
+    for u in ["B","KB","MB","GB","TB"]:
+        if n < 1024: return f"{n:.0f}{u}"
+        n /= 1024
+    return f"{n:.0f}PB"
+
+@app.get("/path/list-raw/{filepath:path}")
+def path_list_raw(filepath: str):
+    base = _guard_path("/" + filepath)
+    if not base.exists() or not base.is_dir():
+        raise HTTPException(status_code=404, detail="directory not found")
+    rows = []
+    for e in sorted(base.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+        info = _stat_info(e)
+        kind = "dir" if e.is_dir() else "file"
+        rows.append(f"{kind:4}  {_hsize(info[size]):>6}  {info[mtime_iso]}  {e.name}")
+    return PlainTextResponse("\n".join(rows), media_type="text/plain")
+
+
+def _hsize(n):
+    if n is None:
+        return "-"
+    units = ["B","KB","MB","GB","TB","PB"]
+    i = 0
+    while n >= 1024 and i < len(units) - 1:
+        n /= 1024.0
+        i += 1
+    return f"{n:.0f}{units[i]}"
+
+@app.get("/path/list-raw/{filepath:path}")
+def path_list_raw(filepath: str):
+    base = _guard_path("/" + filepath)
+    if not base.exists() or not base.is_dir():
+        raise HTTPException(status_code=404, detail="directory not found")
+    rows = []
+    for e in sorted(base.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+        info = _stat_info(e)
+        kind = "dir" if e.is_dir() else "file"
+        rows.append(f"{kind:4}  {_hsize(info['size']):>6}  {info['mtime_iso']}  {e.name}")
+    return PlainTextResponse("\n".join(rows), media_type="text/plain")

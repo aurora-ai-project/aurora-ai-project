@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Aurora Dashboard</title>
+  <link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+<header>
+  <h1>Aurora</h1>
+  <div id="status">loading…</div>
+</header>
+
+<section class="grid">
+  <div class="card">
+    <h2>Health</h2>
+    <pre id="health"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Positions</h2>
+    <pre id="positions"></pre>
+  </div>
+
+  <div class="card">
+    <h2>AI</h2>
+    <pre id="ai"></pre>
+    <div class="row">
+      <label>Epsilon</label>
+      <input id="eps" type="number" step="0.01" min="0" max="1" value="0.10"/>
+      <button id="btnEps">Set</button>
+    </div>
+    <div class="row">
+      <label>Base stake</label>
+      <input id="stake" type="number" step="0.01" min="0.01" max="1" value="0.10"/>
+      <button id="btnStake">Set</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Tick loop</h2>
+    <div class="row">
+      <label>Interval (s)</label>
+      <input id="interval" type="number" step="0.1" min="0.05" value="0.5"/>
+      <button id="btnStart">Start</button>
+      <button id="btnStop">Stop</button>
+      <button id="btnTick">Tick once</button>
+    </div>
+    <pre id="tickcfg"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Manual Orders</h2>
+    <div class="row">
+      <select id="side">
+        <option>BUY</option>
+        <option>SELL</option>
+        <option>EXIT</option>
+      </select>
+      <input id="fraction" type="number" step="0.01" min="0" max="1" value="0.10"/>
+      <button id="btnPreview">Preview</button>
+      <button id="btnSubmit">Submit</button>
+    </div>
+    <pre id="orderOut"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Risk</h2>
+    <div class="row"><label>Stake cap %</label><input id="risk_stake_cap" type="number" step="1" min="1" max="100" value="10"><button id="btnRisk">Apply</button></div>
+    <pre id="risk"></pre>
+  </div>
+
+  <div class="card wide">
+    <h2>Recent Trades</h2>
+    <table id="trades"><thead></thead><tbody></tbody></table>
+  </div>
+</section>
+
+<script src="/ui/app.js"></script>
+</body>
+</html>

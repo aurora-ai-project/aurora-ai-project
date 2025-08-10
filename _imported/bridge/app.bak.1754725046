@@ -1,0 +1,192 @@
+import os, json, pathlib, subprocess
+from typing import List, Optional
+from fastapi import FastAPI, Header, HTTPException, Request
+from pydantic import BaseModel
+
+app = FastAPI()
+CFG_PATH = "config.json"
+if not os.path.exists(CFG_PATH):
+    raise RuntimeError("config.json missing")
+with open(CFG_PATH, "r") as f:
+    CFG = json.load(f)
+
+BASE_DIR = pathlib.Path(CFG["base_dir"]).resolve()
+TOKEN = CFG["token"]
+MAX_BYTES = int(CFG.get("max_bytes", 2_000_000))
+
+class Action(BaseModel):
+    op: str
+    path: str
+    content: Optional[str] = None
+    mode: Optional[str] = "w"
+
+class GitSpec(BaseModel):
+    enabled: bool = False
+    repo_path: Optional[str] = None
+    message: Optional[str] = "update"
+    add_paths: Optional[List[str]] = None
+    branch: Optional[str] = None
+
+class Bundle(BaseModel):
+    actions: List[Action]
+    git: Optional[GitSpec] = GitSpec()
+
+def _guard_path(p: str) -> pathlib.Path:
+    rp = pathlib.Path(p).expanduser().resolve()
+    if not str(rp).startswith(str(BASE_DIR)):
+        raise HTTPException(status_code=400, detail="path outside allow list")
+    return rp
+
+@app.get("/")
+async def root():
+    return {"ok": True, "base_dir": str(BASE_DIR)}
+
+@app.post("/apply")
+async def apply(bundle: Bundle, request: Request, x_auth: Optional[str] = Header(default=None)):
+    body = await request.body()
+    if x_auth != TOKEN:
+        raise HTTPException(status_code=401, detail="bad token")
+    if len(body) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail="payload too large")
+
+    results = []
+    bytes_written = 0
+
+    for a in bundle.actions:
+        op = a.op.lower()
+        tgt = _guard_path(a.path)
+
+        if op == "mkdir":
+            tgt.mkdir(parents=True, exist_ok=True)
+            results.append({"op": op, "path": str(tgt), "status": "ok"})
+        elif op in ("write", "append"):
+            if a.content is None:
+                raise HTTPException(status_code=400, detail="content required")
+            data = a.content.encode("utf-8")
+            bytes_written += len(data)
+            if bytes_written > MAX_BYTES:
+                raise HTTPException(status_code=413, detail="bundle too large")
+            tgt.parent.mkdir(parents=True, exist_ok=True)
+            m = "a" if op == "append" else (a.mode or "w")
+            with open(tgt, m, encoding="utf-8") as f:
+                f.write(a.content)
+            results.append({"op": op, "path": str(tgt), "status": "ok", "bytes": len(data)})
+        else:
+            raise HTTPException(status_code=400, detail=f"unsupported op {op}" )
+
+    g = bundle.git or GitSpec()
+    git_info = None
+    if g.enabled:
+        if not g.repo_path:
+            raise HTTPException(status_code=400, detail="git repo_path required")
+        repo = _guard_path(g.repo_path)
+        add_list = g.add_paths or [str(_guard_path(a.path)) for a in bundle.actions if a.op in ("write","append")]
+        subprocess.run(["git","add"] + add_list, cwd=repo, check=True, capture_output=True, text=True)
+        subprocess.run(["git","commit","-m", g.message or "update"], cwd=repo, check=True, capture_output=True, text=True)
+        if g.branch:
+            subprocess.run(["git","push","origin", g.branch], cwd=repo, check=True, capture_output=True, text=True)
+        else:
+            subprocess.run(["git","push"], cwd=repo, check=True, capture_output=True, text=True)
+        git_info = {"committed": True, "paths": add_list}
+
+    return {"ok": True, "results": results, "git": git_info}
+
+
+# --- public, signed write endpoint ---
+from fastapi import HTTPException
+import hmac, hashlib, time, base64
+
+@app.get("/public-apply")
+def public_apply(name: str, content: str, ts: int, sig: str):
+    now = int(time.time())
+    if abs(now - int(ts)) > 300:
+        raise HTTPException(status_code=400, detail="expired")
+    msg = f"{ts}|{name}|{content}".encode()
+    good = hmac.new(TOKEN.encode(), msg, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(good, sig):
+        raise HTTPException(status_code=401, detail="bad sig")
+    target = (BASE_DIR / name).resolve()
+    if not str(target).startswith(str(BASE_DIR)):
+        raise HTTPException(status_code=400, detail="path outside allow list")
+    data = base64.b64decode(content.encode())
+    if len(data) > 4096:
+        raise HTTPException(status_code=400, detail="too big")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "wb") as f:
+        f.write(data)
+    return {"ok": True, "path": str(target), "bytes": len(data)}
+
+
+# public write, no expiry
+from fastapi import HTTPException
+import hmac, hashlib, time, base64
+
+@app.get("/public-apply-ne")
+def public_apply_no_expiry(name: str, content: str, ts: int, sig: str):
+    msg = f"{ts}|{name}|{content}".encode()
+    good = hmac.new(TOKEN.encode(), msg, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(good, sig):
+        raise HTTPException(status_code=401, detail="bad sig")
+    target = (BASE_DIR / name).resolve()
+    if not str(target).startswith(str(BASE_DIR)):
+        raise HTTPException(status_code=400, detail="path outside allow list")
+    data = base64.b64decode(content.encode())
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "wb") as f:
+        f.write(data)
+    return {"ok": True, "path": str(target), "bytes": len(data)}
+
+
+# public bundle, no expiry
+from fastapi import HTTPException
+import hmac, hashlib, time, base64, json
+
+@app.get("/public-apply-bundle")
+def public_apply_bundle(bundle: str, ts: int, sig: str):
+    msg = f"{ts}|{bundle}".encode()
+    good = hmac.new(TOKEN.encode(), msg, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(good, sig):
+        raise HTTPException(status_code=401, detail="bad sig")
+    data = base64.b64decode(bundle.encode())
+    spec = json.loads(data.decode())
+    results = []
+    for a in spec.get("actions", []):
+        op = a.get("op","" ).lower()
+        path = a.get("path")
+        content = a.get("content")
+        mode = a.get("mode","w")
+        if not path:
+            raise HTTPException(status_code=400, detail="missing path")
+        tgt = (BASE_DIR / path.replace(str(BASE_DIR), "").lstrip("/")) .resolve()
+        if not str(tgt).startswith(str(BASE_DIR)):
+            raise HTTPException(status_code=400, detail="path outside allow list")
+        if op == "mkdir":
+            tgt.mkdir(parents=True, exist_ok=True)
+            results.append({"op": op, "path": str(tgt), "status": "ok"})
+        elif op in ("write","append"):
+            if content is None:
+                raise HTTPException(status_code=400, detail="content required")
+            tgt.parent.mkdir(parents=True, exist_ok=True)
+            m = "a" if op == "append" else mode
+            with open(tgt, m, encoding="utf-8") as f:
+                f.write(content)
+            results.append({"op": op, "path": str(tgt), "status": "ok", "bytes": len(content.encode("utf-8"))})
+        else:
+            raise HTTPException(status_code=400, detail=f"unsupported op {op}")
+    return {"ok": True, "results": results}
+
+from fastapi import Query
+import os
+
+@app.get("/p")
+def file_ops(op: str = Query(...), path: str = Query(...), text: str = Query("")):
+    if op == "write":
+        with open(path, "w") as f:
+            f.write(text)
+        return {"status": "written", "path": path}
+    elif op == "append":
+        with open(path, "a") as f:
+            f.write(text)
+        return {"status": "appended", "path": path}
+    else:
+        return {"error": "unknown op"}

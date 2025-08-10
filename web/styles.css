@@ -1,0 +1,25 @@
+:root { --bg:#0b0f14; --fg:#e6eef7; --mut:#9fb3c8; --card:#121822; }
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,Segoe UI,Roboto}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #1d2633}
+h1{margin:0;font-size:18px} h2{margin:0 0 8px 0;font-size:15px}
+.grid{display:grid;gap:12px;padding:12px;grid-template-columns:repeat(2,1fr)}
+.card{background:var(--card);border:1px solid #1d2633;border-radius:12px;padding:12px}
+.card.wide{grid-column:1/-1}
+pre{margin:0;background:#0b111a;border:1px solid #1a2230;border-radius:8px;padding:8px;max-height:220px;overflow:auto}
+.row{display:flex;gap:8px;align-items:center;margin:6px 0}
+input,button,select{padding:6px 10px;border-radius:8px;border:1px solid #223049;background:#0d141f;color:var(--fg)}
+button{background:#12243a;border-color:#1f3e63;cursor:pointer}
+button:hover{filter:brightness(1.06)}
+label{color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead td{color:var(--mut);border-bottom:1px solid #24334a;padding:6px}
+tbody td{border-bottom:1px solid #172234;padding:6px}
+#status{color:var(--mut)}
+@media (max-width: 760px){ .grid{grid-template-columns:1fr} }
+
+/* Aurora UI+ */
+.small { font-size: 12px; }
+.bar { width: 100%; height: 10px; background: #1f2937; border-radius: 6px; overflow: hidden; margin-top: 8px; }
+.bar-fill { height: 100%; background: #3b82f6; }
+/* Make trades table scroll with a shorter view */
+#trades { display:block; max-height:260px; overflow:auto; border:1px solid #1f2937; border-radius:8px; }
