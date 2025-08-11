@@ -1,3 +1,4 @@
+import asyncio
 REGISTER_NAME = "ema_plugin"
 def on_load(state):
     state.setdefault("ema_seen", 0)

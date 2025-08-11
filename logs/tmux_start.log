@@ -1,0 +1,3 @@
+[2025-08-11T03:24:28+00:00] starting…
+[WARN] Could not detect backend module. Skipping backend.
+[ERROR] Could not detect trader module (engine.trader/core.trader).

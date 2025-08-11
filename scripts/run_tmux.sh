@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd /home/aurora/AI
-[ -f .env ] && set -a && . ./.env && set +a
+LOGDIR="/home/aurora/AI/logs"
+mkdir -p "$LOGDIR"
 tmux kill-server 2>/dev/null || true
-tmux new-session -d -s aurora "bash -lc 'cd /home/aurora/AI && [ -f .env ] && set -a && . ./.env && set +a && source venv/bin/activate && uvicorn engine.api:app --host 127.0.0.1 --port 8000'"
-tmux split-window -h -t aurora "bash -lc 'cd /home/aurora/AI && [ -f .env ] && set -a && . ./.env && set +a && source venv/bin/activate && python - <<\"PY\"
-import time
-from engine.ticker import tick_once, set_config
-set_config(enabled=True, interval=1)
-while True:
-    try:
-        tick_once()
-    except Exception as e:
-        print(\"[ticker] error:\", e)
-    time.sleep(1)
-PY'"
-tmux attach -t aurora
+BASE="cd /home/aurora/AI && source venv/bin/activate"
+tmux new -d -s aurora_backend "$BASE && uvicorn engine.api:app --host 0.0.0.0 --port 8000 >> $LOGDIR/backend.out 2>> $LOGDIR/backend.err"
+tmux new -d -s aurora_trader  "$BASE && python -m engine.trader >> $LOGDIR/trader.out 2>> $LOGDIR/trader.err"
+# nginx optional:
+command -v nginx >/dev/null 2>&1 && tmux new -d -s aurora_nginx "sudo nginx -g 'daemon off;' >> $LOGDIR/nginx.out 2>> $LOGDIR/nginx.err"
+tmux ls

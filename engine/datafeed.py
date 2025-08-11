@@ -1,3 +1,4 @@
+import asyncio
 import time, random
 from .binance import get_latest_close
 

@@ -1,3 +1,4 @@
+import asyncio
 REGISTER_NAME = "ai_plugin"
 from engine.ai_agent import step, load, save, set_eps, set_stake
 

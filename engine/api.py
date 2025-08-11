@@ -60,7 +60,7 @@ def refresh_plugins():
 # --- Tick controls ---
 @app.get("/tick")
 async def tick_once():
-    return await ticker.tick_once()
+    return await tickerawait .tick_once()
 
 @app.get("/tick/auto")
 def tick_auto_get():
@@ -174,3 +174,9 @@ def ai_readiness():
         "readiness": readiness,
         "reason": reason,
     }
+
+
+    async def tick_loop(self):
+        while True:
+            await selfawait .tick_once()
+            await asyncio.sleep(getattr(self,"interval",1.0))

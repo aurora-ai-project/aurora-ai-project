@@ -1,3 +1,4 @@
+import asyncio
 from .state import load_state, save_state
 
 DEFAULT_CAP = 10.0  # % of cash for BUY per plugin before global risk

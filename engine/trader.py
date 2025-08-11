@@ -1,6 +1,6 @@
+import asyncio
 
     async def tick_loop(self):
         while True:
-            await self.tick_once()
+            await selfawait .tick_once()
             await asyncio.sleep(self.interval)
-

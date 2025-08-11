@@ -1,3 +1,4 @@
+import asyncio
 import httpx, time
 
 BASE = "https://api.binance.com"
