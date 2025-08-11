@@ -7,7 +7,7 @@ trader = Trader(interval_seconds=1.0)
 
 @app.on_event("startup")
 async def start_bg():
-    asyncio.create_task(trader.tick_loop())  # run forever in background
+    asyncio.create_task(trader.tick_loop())
 
 @app.get("/health")
 async def health():
@@ -15,5 +15,5 @@ async def health():
 
 @app.post("/tick/once")
 async def tick_once():
-    await trader.tick_once()                 # <- awaited (no warnings)
+    await trader.tick_once()
     return {"ok": True}

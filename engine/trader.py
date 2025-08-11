@@ -8,23 +8,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 class Trader:
     def __init__(self, interval_seconds: float = 1.0):
-        self.interval: float = float(interval_seconds)
-        self._running: bool = False
+        self.interval = float(interval_seconds)
+        self._running = False
         self._stop: Optional[asyncio.Event] = None
 
     async def tick_once(self) -> None:
-        """
-        Do ONE trading tick.
-        TODO: wire in your real: datafeed -> strategies -> risk -> executor -> logging
-        """
-        # heartbeat so we can see it working
         log.info("tick @ %s", datetime.utcnow().isoformat() + "Z")
-        await asyncio.sleep(0)  # yield to event loop
+        await asyncio.sleep(0)
 
     async def tick_loop(self) -> None:
-        """
-        Forever loop that *awaits* tick_once() and sleeps between iterations.
-        """
         if self._running:
             return
         self._running = True
@@ -40,7 +32,6 @@ class Trader:
         if self._stop is not None:
             self._stop.set()
 
-# ---- CLI entrypoint (tmux runs this module) ----
 async def _amain() -> None:
     trader = Trader(interval_seconds=1.0)
     await trader.tick_loop()
