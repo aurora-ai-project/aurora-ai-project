@@ -1,5 +1,5 @@
 import os, csv, time
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Optional, Literal
 
@@ -18,7 +18,7 @@ class Position:
 @dataclass
 class Account:
     balance: float = float(os.getenv("AURORA_BALANCE", "1000"))
-    pos: Position = Position()
+    pos: Position = field(default_factory=Position)
     realized_pnl: float = 0.0
     sl_pct: float = float(os.getenv("AURORA_SL_PCT", "0.02"))   # 2%
     tp_pct: float = float(os.getenv("AURORA_TP_PCT", "0.03"))   # 3%
