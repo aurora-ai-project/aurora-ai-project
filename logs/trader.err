@@ -16,3 +16,74 @@ Traceback (most recent call last):
   File "/home/aurora/AI/engine/trader.py", line 3
     async def tick_loop(self):
 IndentationError: unexpected indent
+Traceback (most recent call last):
+  File "<frozen runpy>", line 189, in _run_module_as_main
+  File "<frozen runpy>", line 159, in _get_module_details
+  File "<frozen importlib._bootstrap_external>", line 1129, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1059, in source_to_code
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/home/aurora/AI/engine/trader.py", line 3
+    async def tick_loop(self):
+IndentationError: unexpected indent
+Traceback (most recent call last):
+  File "<frozen runpy>", line 189, in _run_module_as_main
+  File "<frozen runpy>", line 159, in _get_module_details
+  File "<frozen importlib._bootstrap_external>", line 1129, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1059, in source_to_code
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/home/aurora/AI/engine/trader.py", line 3
+    async def tick_loop(self):
+IndentationError: unexpected indent
+/home/aurora/AI/engine/trader.py:21: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  log.info("tick @ %s", datetime.utcnow().isoformat() + "Z")
+2025-08-11 03:34:06,247 INFO aurora.trader: tick @ 2025-08-11T03:34:06.247719Z
+2025-08-11 03:34:07,249 INFO aurora.trader: tick @ 2025-08-11T03:34:07.248973Z
+2025-08-11 03:34:08,250 INFO aurora.trader: tick @ 2025-08-11T03:34:08.250330Z
+2025-08-11 03:34:09,251 INFO aurora.trader: tick @ 2025-08-11T03:34:09.251730Z
+2025-08-11 03:34:10,253 INFO aurora.trader: tick @ 2025-08-11T03:34:10.253226Z
+2025-08-11 03:34:11,254 INFO aurora.trader: tick @ 2025-08-11T03:34:11.254682Z
+2025-08-11 03:34:12,256 INFO aurora.trader: tick @ 2025-08-11T03:34:12.256152Z
+2025-08-11 03:34:13,257 INFO aurora.trader: tick @ 2025-08-11T03:34:13.257653Z
+2025-08-11 03:34:14,259 INFO aurora.trader: tick @ 2025-08-11T03:34:14.259148Z
+2025-08-11 03:34:15,260 INFO aurora.trader: tick @ 2025-08-11T03:34:15.260611Z
+2025-08-11 03:34:16,262 INFO aurora.trader: tick @ 2025-08-11T03:34:16.262104Z
+2025-08-11 03:34:17,263 INFO aurora.trader: tick @ 2025-08-11T03:34:17.263629Z
+2025-08-11 03:34:18,265 INFO aurora.trader: tick @ 2025-08-11T03:34:18.265098Z
+2025-08-11 03:34:19,266 INFO aurora.trader: tick @ 2025-08-11T03:34:19.266513Z
+2025-08-11 03:34:20,268 INFO aurora.trader: tick @ 2025-08-11T03:34:20.267980Z
+2025-08-11 03:34:21,269 INFO aurora.trader: tick @ 2025-08-11T03:34:21.269465Z
+2025-08-11 03:34:22,270 INFO aurora.trader: tick @ 2025-08-11T03:34:22.270907Z
+2025-08-11 03:34:23,272 INFO aurora.trader: tick @ 2025-08-11T03:34:23.272330Z
+2025-08-11 03:34:24,273 INFO aurora.trader: tick @ 2025-08-11T03:34:24.273817Z
+2025-08-11 03:34:25,275 INFO aurora.trader: tick @ 2025-08-11T03:34:25.275219Z
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/aurora/AI/engine/trader.py", line 46, in _amain
+    await trader.tick_loop()
+  File "/home/aurora/AI/engine/trader.py", line 35, in tick_loop
+    await asyncio.sleep(self.interval)
+  File "/usr/lib/python3.12/asyncio/tasks.py", line 665, in sleep
+    return await future
+           ^^^^^^^^^^^^
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/aurora/AI/engine/trader.py", line 52, in <module>
+    main()
+  File "/home/aurora/AI/engine/trader.py", line 49, in main
+    asyncio.run(_amain())
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 123, in run
+    raise KeyboardInterrupt()
+KeyboardInterrupt
