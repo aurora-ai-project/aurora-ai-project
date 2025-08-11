@@ -1,5 +1,5 @@
-import asyncio
-import uvicorn, os
+import os
+import uvicorn
+from engine.api import app
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT","8000"))
-    uvicorn.run("engine.api:app", host="127.0.0.1", port=port, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT","8000")))

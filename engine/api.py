@@ -1,19 +1,33 @@
-import asyncio
+import os
 from fastapi import FastAPI
-from engine.trader import Trader
+from .ticker import ticker
 
-app = FastAPI()
-trader = Trader(interval_seconds=1.0)
+app = FastAPI(title="Aurora Engine API")
 
 @app.on_event("startup")
-async def start_bg():
-    asyncio.create_task(trader.tick_loop())
+async def _startup():
+    if os.getenv("AURORA_AUTOSTART", "1") == "1":
+        ticker.start()
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"ok": True}
+
+@app.get("/status")
+async def status():
+    running = bool(ticker._task and not ticker._task.done())
+    return {"running": running, "last_tick": ticker.last_tick, "count": ticker.count}
 
 @app.post("/tick/once")
 async def tick_once():
-    await trader.tick_once()
-    return {"ok": True}
+    return await ticker.tick_once()
+
+@app.post("/tick/start")
+async def tick_start():
+    ticker.start()
+    return {"started": True}
+
+@app.post("/tick/stop")
+async def tick_stop():
+    ticker.stop()
+    return {"stopped": True}

@@ -1,5 +1,5 @@
 fastapi
-uvicorn[standard]
-pydantic
 httpx
 numpy
+pydantic
+uvicorn[standard]
