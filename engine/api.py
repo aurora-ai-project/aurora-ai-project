@@ -121,3 +121,14 @@ async def tail_trades(n: int = Query(50, ge=1, le=1000), path: str = "logs/trade
 
 # --- mount /web and serve it at root ---
 app.mount("/web", StaticFiles(directory="web", html=True), name="web")
+
+from fastapi import Query
+from engine.fs import list_tree as _fs_list, get_file as _fs_get
+
+@app.get("/fs/tree")
+async def fs_tree(subdir: str = Query(".", description="relative to ~/AI")):
+    return _fs_list(subdir)
+
+@app.get("/fs/get")
+async def fs_get(path: str = Query(..., description="relative path under ~/AI")):
+    return _fs_get(path)
