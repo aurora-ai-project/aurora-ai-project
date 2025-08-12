@@ -1,0 +1,42 @@
+import asyncio, os
+try:
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+except Exception:
+    pass
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import ORJSONResponse
+from engine.trader import Trader
+
+app = FastAPI(default_response_class=ORJSONResponse)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], allow_credentials=True,
+    allow_methods=["*"], allow_headers=["*"]
+)
+
+trader = Trader(interval_seconds=float(os.getenv("AURORA_TICK_INTERVAL", "1.0")))
+_bg_task = None
+
+@app.on_event("startup")
+async def start_bg():
+    global _bg_task
+    if _bg_task is None or _bg_task.done():
+        _bg_task = asyncio.create_task(trader.tick_loop())
+
+@app.on_event("shutdown")
+async def stop_bg():
+    trader.stop()
+    await asyncio.sleep(0.05)
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@app.post("/tick/once")
+async def tick_once():
+    await trader.tick_once()
+    return {"ok": True}

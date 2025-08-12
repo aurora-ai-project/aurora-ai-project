@@ -21,9 +21,8 @@ class Trader:
         self._stop: Optional[asyncio.Event] = None
 
     async def tick_once(self) -> None:
-        # TODO: datafeed -> strategies -> risk -> executor -> persist
         log.info("tick @ %s", datetime.utcnow().isoformat() + "Z")
-        await asyncio.sleep(0)  # cooperative yield
+        await asyncio.sleep(0)
 
     async def tick_loop(self) -> None:
         if self._running:
@@ -33,13 +32,13 @@ class Trader:
             while not self._stop.is_set():
                 try:
                     await self.tick_once()
+                    await asyncio.sleep(self.interval)  # may be cancelled here
                 except asyncio.CancelledError:
                     log.info("tick loop cancelled; shutting down cleanly")
                     break
                 except Exception as e:
                     log.exception("tick error: %s", e)
-                    await asyncio.sleep(0.25)  # brief backoff on failures
-                await asyncio.sleep(self.interval)
+                    await asyncio.sleep(0.25)
         finally:
             self._running = False
 
@@ -55,7 +54,6 @@ def main() -> None:
     try:
         asyncio.run(_amain())
     except (KeyboardInterrupt, asyncio.CancelledError):
-        # graceful shutdown without traceback spam
         pass
 
 if __name__ == "__main__":
