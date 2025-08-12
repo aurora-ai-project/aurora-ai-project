@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")/.."
-SESSION=aurora_engine
-tmux kill-session -t "$SESSION" 2>/dev/null || true
-source venv/bin/activate
-python3 -m pip install -r requirements.txt
-AURORA_AUTOSTART=1 tmux new-session -d -s "$SESSION" "source venv/bin/activate && python3 main.py"
-echo "Attached: tmux attach -t $SESSION"
+set -e
+SESSION=aurora
+tmux has-session -t "$SESSION" 2>/dev/null && tmux kill-session -t "$SESSION" || true
+tmux new-session -d -s "$SESSION" -n api "cd $(dirname $0)/.. && AURORA_API_KEY=\${AURORA_API_KEY:-dev-key} python3 main.py"
+tmux new-window -t "$SESSION":2 -n trader "cd $(dirname $0)/.. && AURORA_API_KEY=\${AURORA_API_KEY:-dev-key} python3 -c 'from engine.trader import main; import asyncio; asyncio.run(main())'"
+tmux new-window -t "$SESSION":3 -n logs "cd $(dirname $0)/../../logs && tail -f trade_log.csv || sleep infinity"
+tmux select-window -t "$SESSION":1
+echo "tmux session '$SESSION' started: windows [api, trader, logs]"
