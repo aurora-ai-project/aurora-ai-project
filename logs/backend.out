@@ -20,3 +20,6 @@ INFO:     206.168.34.115:34572 - "GET / HTTP/1.1" 404 Not Found
 INFO:     206.168.34.115:51576 - "GET / HTTP/1.1" 404 Not Found
 INFO:     206.168.34.115:53306 - "GET /favicon.ico HTTP/1.1" 404 Not Found
 INFO:     206.168.34.115:41396 - "GET /login HTTP/1.1" 404 Not Found
+INFO:     64.62.197.32:65184 - "GET / HTTP/1.1" 404 Not Found
+INFO:     64.62.197.33:10311 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     64.62.197.32:30285 - "GET /?format=json HTTP/1.1" 404 Not Found
