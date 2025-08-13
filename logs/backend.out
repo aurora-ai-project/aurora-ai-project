@@ -3,3 +3,16 @@ INFO:     127.0.0.1:50936 - "GET /health HTTP/1.1" 500 Internal Server Error
 INFO:     138.68.235.32:44044 - "GET / HTTP/1.1" 404 Not Found
 INFO:     138.68.235.32:44046 - "GET /login HTTP/1.1" 404 Not Found
 INFO:     44.244.219.19:37156 - "GET / HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:46226 - "GET / HTTP/1.0" 404 Not Found
+INFO:     172.235.181.226:46248 - "GET /nice%20ports%2C/Trinity.txt.bak HTTP/1.0" 404 Not Found
+INFO:     172.235.181.226:46278 - "OPTIONS / HTTP/1.0" 404 Not Found
+INFO:     172.235.181.226:46282 - "OPTIONS / HTTP/1.0" 404 Not Found
+INFO:     172.235.181.226:46372 - "GET /devicedesc.xml HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:40796 - "GET / HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:40818 - "GET / HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:40828 - "GET /webui HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:40840 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:40854 - "GET / HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:40860 - "GET /owa/ HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:40868 - "GET /owa/ HTTP/1.1" 404 Not Found
+INFO:     172.235.181.226:42516 - "GET / HTTP/1.1" 404 Not Found
