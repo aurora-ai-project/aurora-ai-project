@@ -16,3 +16,7 @@ INFO:     172.235.181.226:40854 - "GET / HTTP/1.1" 404 Not Found
 INFO:     172.235.181.226:40860 - "GET /owa/ HTTP/1.1" 404 Not Found
 INFO:     172.235.181.226:40868 - "GET /owa/ HTTP/1.1" 404 Not Found
 INFO:     172.235.181.226:42516 - "GET / HTTP/1.1" 404 Not Found
+INFO:     206.168.34.115:34572 - "GET / HTTP/1.1" 404 Not Found
+INFO:     206.168.34.115:51576 - "GET / HTTP/1.1" 404 Not Found
+INFO:     206.168.34.115:53306 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     206.168.34.115:41396 - "GET /login HTTP/1.1" 404 Not Found
